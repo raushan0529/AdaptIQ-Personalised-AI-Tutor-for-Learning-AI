@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AdaptIQ — Personalised AI Tutor</title>
+<style>
+:root{
+  --navy:#2F3C7E; --navy-dark:#232c5c; --coral:#F96167; --gold:#F9E795;
+  --ink:#1c1e26; --sub:#5b5e68; --card:#F7F5EF; --bg:#fff; --border:#e7e4da;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg:#15171f; --ink:#f0f1f5; --sub:#b7bac4; --card:#1d2030; --border:#2c3045; }
+}
+:root[data-theme="dark"]{ --bg:#15171f; --ink:#f0f1f5; --sub:#b7bac4; --card:#1d2030; --border:#2c3045; }
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
+body{
+  margin:0; min-height:100%; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+header{
+  background:linear-gradient(135deg,var(--navy),var(--navy-dark));
+  color:#fff; padding:28px 20px 24px; padding-top:calc(28px + env(safe-area-inset-top,0px));
+}
+header h1{margin:0 0 4px; font-size:26px;}
+header p{margin:0; color:#cfd4f2; font-size:14px;}
+main{max-width:760px; margin:0 auto; padding:20px; padding-bottom:calc(40px + env(safe-area-inset-bottom,0px));}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  padding:18px; margin-bottom:18px;
+}
+.card h2{margin:0 0 12px; font-size:16px; letter-spacing:.03em; text-transform:uppercase; color:var(--coral);}
+.q{margin-bottom:16px;}
+.q p{margin:0 0 8px; font-weight:600;}
+.opt{
+  display:block; width:100%; text-align:left; padding:10px 12px; margin:6px 0;
+  border:1px solid var(--border); border-radius:9px; background:transparent; color:var(--ink);
+  cursor:pointer; font-size:14.5px;
+}
+.opt.sel{border-color:var(--coral); background:rgba(249,97,103,.12);}
+button.primary{
+  background:var(--coral); color:#fff; border:none; border-radius:9px;
+  padding:12px 20px; font-size:15px; font-weight:600; cursor:pointer; width:100%;
+}
+button.primary:disabled{opacity:.5; cursor:not-allowed;}
+.bar-row{display:flex; align-items:center; gap:10px; margin:8px 0;}
+.bar-row span.label{width:120px; font-size:13px; color:var(--sub); flex-shrink:0;}
+.bar-track{flex:1; height:8px; background:var(--border); border-radius:5px; overflow:hidden;}
+.bar-fill{height:100%; background:var(--coral); border-radius:5px;}
+#chatLog{max-height:340px; overflow-y:auto; margin-bottom:12px;}
+.msg{margin:10px 0; line-height:1.5; font-size:14.5px;}
+.msg.user{color:var(--ink); font-weight:600;}
+.msg.tutor{color:var(--sub); white-space:pre-wrap;}
+.chat-input-row{display:flex; gap:8px;}
+.chat-input-row input{
+  flex:1; padding:11px 12px; border-radius:9px; border:1px solid var(--border);
+  background:var(--bg); color:var(--ink); font-size:14.5px;
+}
+.chat-input-row button{
+  background:var(--navy); color:#fff; border:none; border-radius:9px; padding:0 18px; font-weight:600; cursor:pointer;
+}
+.hidden{display:none;}
+.note{font-size:12.5px; color:var(--sub); margin-top:6px;}
+footer{text-align:center; color:var(--sub); font-size:12px; padding:10px 0 24px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>AdaptIQ</h1>
+  <p>A personalised AI tutor for learning AI — PS‑03, BFWAI/HACK 26</p>
+</header>
+<main>
+
+  <div class="card" id="quizCard">
+    <h2>Step 1 · Quick Diagnostic</h2>
+    <div id="quizBody"></div>
+    <button class="primary" id="submitQuiz" disabled>See my skill map</button>
+  </div>
+
+  <div class="card hidden" id="skillCard">
+    <h2>Your Skill Map</h2>
+    <div id="skillBars"></div>
+    <p class="note">This map steers every explanation and practice question below — ask about whichever topic you want.</p>
+  </div>
+
+  <div class="card hidden" id="chatCard">
+    <h2>Step 2 · Ask Your Tutor</h2>
+    <div id="chatLog"></div>
+    <div class="chat-input-row">
+      <input id="chatInput" type="text" placeholder="Ask about any AI/ML concept…" />
+      <button id="chatSend">Ask</button>
+    </div>
+    <p class="note" id="chatNote"></p>
+  </div>
+
+  <div class="card hidden" id="practiceCard">
+    <h2>Step 3 · Targeted Practice</h2>
+    <p class="note" style="margin-bottom:10px;">Generates one fresh question aimed at your weakest topic.</p>
+    <button class="primary" id="genPractice">Generate practice question</button>
+    <div id="practiceOut" style="margin-top:12px; font-size:14.5px; white-space:pre-wrap; color:var(--sub);"></div>
+  </div>
+
+</main>
+<footer>AdaptIQ · built for BFWAI/HACK 26</footer>
+
+<script>
+const QUESTIONS = [
+  {topic:"Python Basics", q:"What does len([1,2,3]) return?", options:["2","3","Error","None"], correct:1},
+  {topic:"ML Fundamentals", q:"Which of these is a supervised learning task?", options:["Clustering customers","Predicting house price from labelled data","Reducing dimensions with PCA","Finding anomalies with no labels"], correct:1},
+  {topic:"Neural Networks", q:"What does an activation function mainly introduce?", options:["More parameters only","Non-linearity","Faster I/O","Data cleaning"], correct:1},
+  {topic:"Prompting", q:"Which usually improves an LLM prompt's reliability most?", options:["Making it vaguer","Giving a clear role + example output", "Removing all context","Using only one word"], correct:1},
+  {topic:"Evaluation", q:"Accuracy can be misleading mainly when:", options:["Classes are balanced","Classes are imbalanced","The dataset is small","The model is linear"], correct:1},
+];
+
+let answers = new Array(QUESTIONS.length).fill(null);
+let skillMap = {}; // topic -> 0..1
+
+const quizBody = document.getElementById('quizBody');
+QUESTIONS.forEach((item, qi) => {
+  const div = document.createElement('div');
+  div.className = 'q';
+  const p = document.createElement('p');
+  p.textContent = (qi+1) + ". " + item.q;
+  div.appendChild(p);
+  item.options.forEach((opt, oi) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'opt';
+    b.textContent = opt;
+    b.onclick = () => {
+      answers[qi] = oi;
+      [...div.querySelectorAll('.opt')].forEach(el => el.classList.remove('sel'));
+      b.classList.add('sel');
+      document.getElementById('submitQuiz').disabled = answers.includes(null);
+    };
+    div.appendChild(b);
+  });
+  quizBody.appendChild(div);
+});
+
+document.getElementById('submitQuiz').onclick = () => {
+  QUESTIONS.forEach((item, qi) => {
+    skillMap[item.topic] = answers[qi] === item.correct ? 1 : 0.25;
+  });
+  renderSkillMap();
+  document.getElementById('quizCard').classList.add('hidden');
+  document.getElementById('skillCard').classList.remove('hidden');
+  document.getElementById('chatCard').classList.remove('hidden');
+  document.getElementById('practiceCard').classList.remove('hidden');
+};
+
+function renderSkillMap(){
+  const el = document.getElementById('skillBars');
+  el.innerHTML = '';
+  Object.entries(skillMap).forEach(([topic, score]) => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = '<span class="label">'+topic+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(score*100)+'%"></div></div>';
+    el.appendChild(row);
+  });
+}
+
+function weakestTopic(){
+  let w = null, best = 2;
+  Object.entries(skillMap).forEach(([t,s]) => { if (s < best) { best = s; w = t; } });
+  return w || QUESTIONS[0].topic;
+}
+
+function skillSummary(){
+  return Object.entries(skillMap).map(([t,s]) => t + ": " + (s >= 1 ? "solid" : "shaky")).join(", ");
+}
+
+let sampleNS = null;
+async function getSample(){
+  if (sampleNS) return sampleNS;
+  sampleNS = await claude.use("sample");
+  return sampleNS;
+}
+
+const chatLog = document.getElementById('chatLog');
+function addMsg(role, text){
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  d.textContent = (role === 'user' ? 'You: ' : 'Tutor: ') + text;
+  chatLog.appendChild(d);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return d;
+}
+
+document.getElementById('chatSend').onclick = async () => {
+  const input = document.getElementById('chatInput');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  addMsg('user', q);
+  const note = document.getElementById('chatNote');
+  const sample = await getSample();
+  if (!sample){
+    note.textContent = "Live tutoring needs this page opened in Claude — the UI will light up there.";
+    return;
+  }
+  const tutorMsg = addMsg('tutor', 'Thinking…');
+  try{
+    const prompt = "You are AdaptIQ, an adaptive AI tutor for a learner studying AI/ML. "+
+      "Their diagnosed skill map is: " + skillSummary() + ". "+
+      "Pitch your explanation to their level: go deeper and skip basics on topics marked solid, "+
+      "and explain from first principles with a simple analogy on topics marked shaky. "+
+      "Keep the answer under 120 words. Learner's question: " + q;
+    const res = await sample(prompt, { onText: ({text}) => { tutorMsg.textContent = 'Tutor: ' + text; } });
+    tutorMsg.textContent = 'Tutor: ' + res.text;
+  }catch(e){
+    tutorMsg.textContent = 'Tutor: (could not reach the tutor just now — try again.)';
+  }
+};
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('chatSend').click();
+});
+
+document.getElementById('genPractice').onclick = async () => {
+  const out = document.getElementById('practiceOut');
+  const sample = await getSample();
+  if (!sample){ out.textContent = "Open this page in Claude to generate live practice questions."; return; }
+  out.textContent = 'Generating…';
+  try{
+    const weak = weakestTopic();
+    const prompt = "Write ONE short multiple-choice practice question (4 options, mark the correct one at the end as 'Answer: X') "+
+      "on the topic '" + weak + "' for a learner whose skill map is: " + skillSummary() + ". Keep it concise.";
+    const res = await sample(prompt);
+    out.textContent = res.text;
+  }catch(e){
+    out.textContent = 'Could not generate a question just now — try again.';
+  }
+};
+</script>
+</body>
+</html>
